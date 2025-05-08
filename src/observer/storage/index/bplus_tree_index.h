@@ -28,6 +28,7 @@ public:
   virtual ~BplusTreeIndex() noexcept;
 
   RC create(Table *table, const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta) override;
+  RC drop();
   RC open(Table *table, const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta) override;
   RC close();
 

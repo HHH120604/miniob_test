@@ -208,6 +208,92 @@ RC HeapTableEngine::create_index(Trx *trx, const FieldMeta *field_meta, const ch
   return rc;
 }
 
+RC HeapTableEngine::drop_index(Trx *trx, const char *index_name)
+{
+  if (common::is_blank(index_name)) {
+    LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", table_meta_->name());
+    return RC::INVALID_ARGUMENT;
+  }
+
+  RC rc = RC::SUCCESS;
+
+  // 获取对应索引
+  BplusTreeIndex *index = nullptr;
+  string index_file = table_index_file(db_->path().c_str(), table_meta_->name(), index_name);
+  vector<Index *>::iterator it;
+  for (it = indexes_.begin(); it != indexes_.end(); it++)
+  {
+    // 动态类型转换
+    BplusTreeIndex* bplus_index = dynamic_cast<BplusTreeIndex*>(*it);
+    if (bplus_index && 0 == strcmp(bplus_index->index_meta().name(), index_name))
+    {
+        index = bplus_index;
+        break;
+    }
+  }
+  if (it == indexes_.end() && index == nullptr)
+  {
+    LOG_ERROR("Failed to find bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
+    return RC::NOTFOUND;
+  }
+
+  rc = index->close();
+  if (rc != RC::SUCCESS) {
+    delete index;
+    LOG_ERROR("Failed to close bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
+    return rc;
+  }
+
+  rc = index->drop();
+  delete index;
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to drop bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
+    return rc;
+  }
+
+  indexes_.erase(it);
+
+  /// 接下来将这个索引放到表的元数据中
+  TableMeta new_table_meta(*table_meta_);
+  rc = new_table_meta.drop_index(index_name);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to drop index (%s) on table (%s). error=%d:%s", index_name, table_meta_->name(), rc, strrc(rc));
+    return rc;
+  }
+
+  /// 内存中有一份元数据，磁盘文件也有一份元数据。修改磁盘文件时，先创建一个临时文件，写入完成后再rename为正式文件
+  /// 这样可以防止文件内容不完整
+  // 创建元数据临时文件
+  string  tmp_file = table_meta_file(db_->path().c_str(), table_meta_->name()) + ".tmp";
+  fstream fs;
+  fs.open(tmp_file, ios_base::out | ios_base::binary | ios_base::trunc);
+  if (!fs.is_open()) {
+    LOG_ERROR("Failed to open file for write. file name=%s, errmsg=%s", tmp_file.c_str(), strerror(errno));
+    return RC::IOERR_OPEN;  // 创建索引中途出错，要做还原操作
+  }
+  if (new_table_meta.serialize(fs) < 0) {
+    LOG_ERROR("Failed to dump new table meta to file: %s. sys err=%d:%s", tmp_file.c_str(), errno, strerror(errno));
+    return RC::IOERR_WRITE;
+  }
+  fs.close();
+
+  // 覆盖原始元数据文件
+  string meta_file = table_meta_file(db_->path().c_str(), table_meta_->name());
+
+  int ret = rename(tmp_file.c_str(), meta_file.c_str());
+  if (ret != 0) {
+    LOG_ERROR("Failed to rename tmp meta file (%s) to normal meta file (%s) while dropping index (%s) on table (%s). "
+              "system error=%d:%s",
+              tmp_file.c_str(), meta_file.c_str(), index_name, table_meta_->name(), errno, strerror(errno));
+    return RC::IOERR_WRITE;
+  }
+  // 覆写内存中的元数据
+  table_meta_->swap(new_table_meta);
+
+  LOG_INFO("Successfully dropped index (%s) on the table (%s)", index_name, table_meta_->name());
+  return rc;
+}
+
 RC HeapTableEngine::insert_entry_of_indexes(const char *record, const RID &rid)
 {
   RC rc = RC::SUCCESS;
