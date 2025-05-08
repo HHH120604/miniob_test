@@ -108,6 +108,19 @@ RC TableMeta::add_index(const IndexMeta &index)
   return RC::SUCCESS;
 }
 
+RC TableMeta::drop_index(const char *index_name)
+{
+  for (auto it = indexes_.begin(); it != indexes_.end(); it++)
+  {
+    if (0 == strcmp(it->name(), index_name))
+    {
+      it = indexes_.erase(it);
+      return RC::SUCCESS;
+    }
+  }
+  return RC::NOTFOUND;
+}
+
 const char *TableMeta::name() const { return name_.c_str(); }
 
 const FieldMeta *TableMeta::trx_field() const { return &fields_[0]; }

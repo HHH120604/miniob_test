@@ -68,6 +68,12 @@ public:
       const StorageFormat storage_format = StorageFormat::ROW_FORMAT,
       const StorageEngine storage_engine = StorageEngine::HEAP);
 
+    /**
+   * @brief 删除一个表
+   * @param table_name 表名
+   */
+  RC drop_table(const char *table_name);
+
   /**
    * @brief 根据表名查找表
    */

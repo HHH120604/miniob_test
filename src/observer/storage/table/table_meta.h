@@ -39,6 +39,7 @@ public:
       span<const AttrInfoSqlNode> attributes, StorageFormat storage_format, StorageEngine storage_engine);
 
   RC add_index(const IndexMeta &index);
+  RC drop_index(const char *index_name);
 
 public:
   int32_t             table_id() const { return table_id_; }

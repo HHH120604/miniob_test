@@ -44,6 +44,28 @@ RC BplusTreeIndex::create(Table *table, const char *file_name, const IndexMeta &
   return RC::SUCCESS;
 }
 
+RC BplusTreeIndex::drop()
+{
+  if (inited_) {
+    LOG_WARN("Failed to drop index due to the index has not been inited before. index:%s, field:%s", 
+        index_meta_.name(), index_meta_.field());
+    return RC::RECORD_OPENNED;
+  }
+
+  BufferPoolManager &bpm = table_->db()->buffer_pool_manager();
+  const char *index_name = index_handler_.buffer_pool().filename();
+  RC rc = bpm.drop_file(index_name);
+  if (RC::SUCCESS != rc) {
+    LOG_WARN("Failed to create index_handler, index:%s, field:%s, rc:%s",
+        index_meta_.name(), index_meta_.field(), strrc(rc));
+    return rc;
+  }
+
+  LOG_INFO("Successfully drop index, index:%s, field:%s",
+    index_meta_.name(), index_meta_.field());
+  return RC::SUCCESS;
+}
+
 RC BplusTreeIndex::open(Table *table, const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta)
 {
   if (inited_) {

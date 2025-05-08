@@ -838,6 +838,27 @@ RC BufferPoolManager::create_file(const char *file_name)
   return RC::SUCCESS;
 }
 
+RC BufferPoolManager::drop_file(const char *file_name)
+{
+  // 检查文件是否存在，以只读|检查存在|竞争关闭模式打开
+  int fd = open(file_name, O_RDONLY | O_EXCL | O_CLOEXEC, 0600);
+  if (fd < 0) {
+    LOG_ERROR("Failed to open %s, due to %s.", file_name, strerror(errno));
+    return RC::SCHEMA_DB_NOT_EXIST;
+  }
+  close(fd);
+
+  // 删除数据文件
+  if (!remove(file_name)) {
+    LOG_INFO("Successfuly remove file in buffer drop. file name=%s", file_name);
+  } else {
+    LOG_ERROR("Failed to remove file in buffer drop. file name=%s, errmsg=%s", file_name, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  return RC::SUCCESS;
+}
+
 RC BufferPoolManager::open_file(LogHandler &log_handler, const char *_file_name, DiskBufferPool *&_bp)
 {
   string file_name(_file_name);

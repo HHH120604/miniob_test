@@ -128,6 +128,60 @@ RC Table::create(Db *db, int32_t table_id, const char *path, const char *name, c
   return rc;
 }
 
+RC Table::drop(Db *db, int32_t table_id, const char *path, const char *name, const char *base_dir)
+{
+  // TODO
+  // drop index first
+  
+  if (table_id < 0) {
+    LOG_WARN("invalid table id. table_id=%d, table_name=%s", table_id, name);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  if (common::is_blank(name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+  LOG_INFO("Begin to drop table %s:%s", base_dir, name);
+
+  RC rc = RC::SUCCESS;
+
+  // 判断表文件是否已经存在，以只读|检查存在|竞争关闭模式打开
+  int fd = ::open(path, O_RDONLY | O_EXCL | O_CLOEXEC, 0600);
+  if (fd < 0) {
+    if (ENOENT == errno) { // 文件不存在
+      LOG_ERROR("Failed to drop table file, it has not been created. %s, EEXIST, %s", path, strerror(errno));
+      return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+    LOG_ERROR("Drop table file failed. filename=%s, errmsg=%d:%s", path, errno, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  close(fd);
+
+  // 删除.table元数据文件
+  if (!remove(path)) {
+    LOG_INFO("Successfuly remove .table table-meta file for drop. file name=%s", path);
+  } else {
+    LOG_ERROR("Failed to remove .table table-meta file for drop. file name=%s, errmsg=%s", path, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  // 删除.data数据文件
+  db_       = db;
+
+  string             data_file = table_data_file(base_dir, name);
+  BufferPoolManager &bpm       = db->buffer_pool_manager();
+  rc                           = bpm.drop_file(data_file.c_str());
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to drop disk buffer pool of data file. file name=%s", data_file.c_str());
+    return rc;
+  }
+
+  LOG_INFO("Successfully drop table %s:%s", base_dir, name);
+  return rc;
+}
+
 RC Table::open(Db *db, const char *meta_file, const char *base_dir)
 {
   // 加载元数据文件
@@ -261,6 +315,11 @@ RC Table::get_chunk_scanner(ChunkFileScanner &scanner, Trx *trx, ReadWriteMode m
 RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name)
 {
   return engine_->create_index(trx, field_meta, index_name);
+}
+
+RC Table::drop_index(Trx *trx, const char *index_name)
+{
+  return engine_->drop_index(trx, index_name);
 }
 
 RC Table::delete_record(const Record &record)
