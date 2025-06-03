@@ -253,7 +253,7 @@ RC HeapTableEngine::drop_index(Trx *trx, const char *index_name)
 
   indexes_.erase(it);
 
-  /// 接下来将这个索引放到表的元数据中
+  /// 接下来将这个索引从元数据中删除
   TableMeta new_table_meta(*table_meta_);
   rc = new_table_meta.drop_index(index_name);
   if (rc != RC::SUCCESS) {

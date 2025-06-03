@@ -132,6 +132,17 @@ RC Table::drop(Db *db, int32_t table_id, const char *path, const char *name, con
 {
   // TODO
   // drop index first
+  // 删除索引文件
+  // 表中暂未存储索引信息，故不执行
+  // for (auto index : indexes_)
+  // {
+  //   rc = drop_index(index->name());
+  //   if (rc != RC::SUCCESS)
+  //   {
+  //     LOG_ERROR("Failed to drop table index. %s, EEXIST, %s", path);
+  //     return RC::SCHEMA_TABLE_NOT_EXIST;
+  //   }
+  // }
   
   if (table_id < 0) {
     LOG_WARN("invalid table id. table_id=%d, table_name=%s", table_id, name);
