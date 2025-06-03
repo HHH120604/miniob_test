@@ -22,6 +22,8 @@ GRTAGS
 GPATH
 GTAGS
 docs/book
+miniob
+db
 #*#
 
 # ignore generated files
